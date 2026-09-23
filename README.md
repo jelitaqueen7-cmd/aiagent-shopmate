@@ -1,3 +1,6 @@
+<img width="671" height="258" alt="Screenshot 2026-09-24 015444" src="https://github.com/user-attachments/assets/77691558-3dd8-4724-8fda-05e25f4b138f" />
+
+
 # 🛒 Shopmate — AI Retail WhatsApp Agent
 
 > **Shopmate** adalah AI Agent customer service dan operasional retail berbasis WhatsApp yang membantu customer mencari produk, mengecek harga dan stok, membuat order, memilih metode fulfillment, mengirim bukti pembayaran, serta membantu admin mengelola produk, inventory, order, dan approval.
