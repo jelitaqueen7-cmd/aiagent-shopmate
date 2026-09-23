@@ -1,0 +1,1277 @@
+{
+  "name": "Barber & Customer Service",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "3IHDpJuuOmdDwVSwODjNFyNAJZt_4napZ4CLWwm1bqVEwfYDR",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -384,
+        1600
+      ],
+      "id": "ed20c075-3733-46ab-ad97-86b2a9312e2f",
+      "name": "Webhook",
+      "webhookId": "0fb788e9-b877-4de4-ae5e-a6b8bb5bd80e"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw=$('Webhook').first().json.body||{};\nconst b=(raw.payload&&typeof raw.payload==='object')?{...raw.payload,device_id:raw.device_id||raw.payload.device_id,session_id:raw.session_id||raw.payload.session_id,event:raw.event||raw.payload.event}:raw;\nlet phone=String(b.pengirim||b.sender||b.from||'').replace(/\\D/g,'');\nif(phone.startsWith('0')) phone='62'+phone.slice(1);\nif(phone.startsWith('8')) phone='62'+phone;\nconst msg=String(b.body||b.message||b.pesan||b.text||'');\nconst image=String(typeof b.image==='string'?b.image:(b.image&&b.image.path)||b.document||b.video||b.audio||'');\nconst isAdmin=phone==='6282192791079';\nreturn [{json:{...b,sender_phone:phone,message_text:msg,message_type:String(b.type|| (image?'image':'text')).toLowerCase(),sender_role:isAdmin?'barber':'unknown',is_admin:isAdmin,display_name:String(b.sender_display_name||b.from_name||b.name||''),gowa_message_id:String(b.id||''),gowa_device_id:String(b.device_id||b.session_id||'barber-wa'),gowa_image:image}}];"
+      },
+      "id": "666f813a-97b2-4ec7-8d40-af79201382be",
+      "name": "Normalize Incoming Sender",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        1600
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "admin-number-route",
+              "leftValue": "={{ $('Normalize Incoming Sender').first().json.sender_phone }}",
+              "rightValue": "6282192791079",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "462ee8ee-01d3-423a-a2f0-9ae23be7093e",
+      "name": "Route Admin Number",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        464,
+        1952
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wa.saidhr.my.id/send/message",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { phone: String($('Normalize Incoming Sender').first().json.sender_phone).replace(/\\D/g,'') + '@s.whatsapp.net', message: 'Foto sudah diterima, tetapi belum ditemukan order yang menunggu pembayaran dari nomor ini. Silakan buat atau konfirmasi order terlebih dahulu.' } }}",
+        "options": {}
+      },
+      "id": "5c13ee23-d287-4e61-a7f9-4be8481d9df9",
+      "name": "Shopmate Reply Payment Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1728,
+        1760
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "sv6kZIikT4sgyV7P",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wa.saidhr.my.id/send/chat-presence",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { phone: String($('Normalize Incoming Sender').first().json.sender_phone) + '@s.whatsapp.net', action: 'stop' } }}",
+        "options": {}
+      },
+      "id": "eb3c9587-6838-4afe-b48e-33de16fa36e6",
+      "name": "Presence Stop Shopmate Payment Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1456,
+        1760
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "sv6kZIikT4sgyV7P",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "shopmate-order-id",
+              "leftValue": "={{ String($json.id || '') }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8774d2d4-0132-4b4a-aabe-408d5658edb4",
+      "name": "Shopmate Payment Order Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1104,
+        1632
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wa.saidhr.my.id/send/chat-presence",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { phone: String($('Normalize Incoming Sender').first().json.sender_phone) + '@s.whatsapp.net', action: 'stop' } }}",
+        "options": {}
+      },
+      "id": "ee621500-6a91-4f86-80a9-d877271657bb",
+      "name": "Presence Stop Shopmate Reply Payment Submitted Flow 7",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1872,
+        1552
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "sv6kZIikT4sgyV7P",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wa.saidhr.my.id/send/chat-presence",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { phone: String($('Normalize Incoming Sender').first().json.sender_phone) + '@s.whatsapp.net', action: 'stop' } }}",
+        "options": {}
+      },
+      "id": "b54fd907-bc43-45c8-b675-9c98d748398f",
+      "name": "Presence Stop Shopmate Send Message 6",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1584,
+        1888
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "sv6kZIikT4sgyV7P",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wa.saidhr.my.id/send/chat-presence",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { phone: String($('Normalize Incoming Sender').first().json.sender_phone) + '@s.whatsapp.net', action: 'start' } }}",
+        "options": {}
+      },
+      "id": "840aa0bd-26ab-4764-ba18-1c1038073f74",
+      "name": "Presence Start Agent Shopmate 3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        720,
+        1824
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "sv6kZIikT4sgyV7P",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wa.saidhr.my.id/send/message",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({phone:String($('Normalize Incoming Sender').first().json.sender_phone).replace(/\\D/g,'')+'@s.whatsapp.net',message:`Bukti pembayaran order #${$('Shopmate Find Pending Payment').first().json.id} sudah diterima dan diteruskan ke admin. Status: payment_submitted.`}) }}",
+        "options": {}
+      },
+      "id": "abb8060e-20b6-4120-969d-e912c7021648",
+      "name": "Shopmate Reply Payment Submitted Flow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2080,
+        1552
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "sv6kZIikT4sgyV7P",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wa.saidhr.my.id/send/message",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({phone:'6282192791079@s.whatsapp.net',message:`Bukti pembayaran Shopmate diterima ✅\\nOrder #${$('Shopmate Find Pending Payment').first().json.id}\\nCustomer: ${$('Normalize Incoming Sender').first().json.sender_phone}\\nBukti: ${$('Detect Shopmate Payment Proof').first().json.shopmate_proof_url || 'media WhatsApp'}\\n\\nBalas APPROVE #<id> atau SETUJUI #<id> setelah memeriksa.`}) }}",
+        "options": {}
+      },
+      "id": "fa62a43c-9bb0-4479-a53e-b213bfd82d00",
+      "name": "Shopmate Notify Admin Payment Proof Flow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1648,
+        1552
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "sv6kZIikT4sgyV7P",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "update",
+        "workspaceId": {
+          "__rl": true,
+          "value": "w96mvuqo",
+          "mode": "id"
+        },
+        "projectId": {
+          "__rl": true,
+          "value": "pmatk44xpey9e3d",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "m3ibfs3fcwliamb",
+          "mode": "id"
+        },
+        "id": "={{ $('Shopmate Find Pending Payment').first().json.id }}",
+        "fieldsMapper": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "payment_submitted",
+            "payment_proof_url": "={{ $('Detect Shopmate Payment Proof').first().json.shopmate_proof_url || $('Detect Shopmate Payment Proof').first().json.filename || 'media WhatsApp' }}",
+            "payment_submitted_at": "={{ $now }}"
+          },
+          "schema": [],
+          "matchingColumns": []
+        }
+      },
+      "id": "ccfdcb7d-9dea-4cc7-a905-338f8539989e",
+      "name": "Shopmate Mark Payment Submitted",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 4,
+      "position": [
+        1392,
+        1552
+      ],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "12RDKnzSoleXUkq7",
+          "name": "NocoDB Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "search",
+        "workspaceId": {
+          "__rl": true,
+          "value": "w96mvuqo",
+          "mode": "id"
+        },
+        "projectId": {
+          "__rl": true,
+          "value": "pmatk44xpey9e3d",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "m3ibfs3fcwliamb",
+          "mode": "id"
+        },
+        "limit": 1,
+        "options": {
+          "where": "=(customer_whatsapp,eq,{{ $('Normalize Incoming Sender').first().json.sender_phone }})~and(status,eq,pending_payment)"
+        }
+      },
+      "id": "ec3a4a6d-fec7-4c7c-9f19-3b0bd06cb521",
+      "name": "Shopmate Find Pending Payment",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 4,
+      "position": [
+        896,
+        1632
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "12RDKnzSoleXUkq7",
+          "name": "NocoDB Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_shopmate_payment_proof }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "829998f6-818c-44dc-81ff-66293d834dbd",
+      "name": "Is Shopmate Payment Proof",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        416,
+        1600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$input.first().json; const b=$('Normalize Incoming Sender').first().json; const text=String(b.message_text||b.message||b.caption||'').toLowerCase(); const type=String(b.type||b.message_type||'').toLowerCase(); const url=String(b.url||b.file_url||b.media_url||b.gowa_image||''); const media=['image','photo','document','file','audio','video','sticker'].some(k=>type.includes(k))||Boolean(url)||text==='non-text message'; const hair=/(saran|rekomendasi|model rambut|gaya rambut|potongan rambut|preview|edit rambut|rambut)/i.test(text); const payment=/(bukti transfer|bukti pembayaran|sudah transfer|sudah bayar|pembayaran|transfer|qris|rekening|struk pembayaran|payment)/i.test(text); return [{json:{...x,...b,is_shopmate_payment_proof:media&&!hair&&(payment||text===''||text==='non-text message'),shopmate_proof_url:url}}];"
+      },
+      "id": "1278a33a-9d91-4bc5-b5f5-ac1233508a08",
+      "name": "Detect Shopmate Payment Proof",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        1600
+      ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Kirim notifikasi WhatsApp ke admin barber yang sama setelah bukti pembayaran order Shopmate berhasil disimpan. Wajib panggil setelah Shopmate Submit Payment Proof berhasil. Jangan gunakan untuk customer biasa tanpa bukti pembayaran.",
+        "method": "POST",
+        "url": "https://wa.saidhr.my.id/send/message",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({phone:'6282192791079@s.whatsapp.net',message:`Bukti pembayaran Shopmate diterima ✅\\nOrder #${$fromAI('order_id','ID order Shopmate','number')}\\nCustomer: ${$('Normalize Incoming Sender').first().json.sender_phone}\\nBukti: ${$fromAI('proof_url','URL bukti pembayaran','string')}\\n\\nMohon periksa lalu balas APPROVE #<id> atau SETUJUI #<id>.`}) }}",
+        "options": {}
+      },
+      "id": "24c4a05b-9af7-4b70-9223-99b28e7fe900",
+      "name": "Shopmate Notify Admin Payment Proof",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [
+        1200,
+        2256
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "sv6kZIikT4sgyV7P",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "ADMIN TOOL: Setujui order Shopmate berdasarkan order_id. Bukti pembayaran TIDAK wajib untuk admin dan payment_proof_url boleh kosong. Jangan menolak approval karena tidak ada bukti; set status confirmed, payment_approved_by, dan payment_approved_at.",
+        "authentication": "nocoDbApiToken",
+        "operation": "update",
+        "workspaceId": {
+          "__rl": true,
+          "value": "w96mvuqo",
+          "mode": "id"
+        },
+        "projectId": {
+          "__rl": true,
+          "value": "pmatk44xpey9e3d",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "m3ibfs3fcwliamb",
+          "mode": "id"
+        },
+        "id": "={{ $fromAI('order_id','ID order yang disetujui','number') }}",
+        "fieldsMapper": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "confirmed",
+            "payment_approved_by": "={{ $fromAI('approved_by','Nomor admin/barber yang menyetujui','string') }}",
+            "payment_approved_at": "={{ $now }}"
+          },
+          "schema": [],
+          "matchingColumns": []
+        }
+      },
+      "id": "75066b3c-dac5-4f3a-9211-856ea9941ae8",
+      "name": "Shopmate Approve Order",
+      "type": "n8n-nodes-base.nocoDbTool",
+      "typeVersion": 4,
+      "position": [
+        800,
+        2304
+      ],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "12RDKnzSoleXUkq7",
+          "name": "NocoDB Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Simpan bukti pembayaran order Shopmate. Gunakan setelah customer mengirim bukti bayar; status payment submission submitted dan order tetap menunggu approval admin.",
+        "authentication": "nocoDbApiToken",
+        "operation": "create",
+        "workspaceId": {
+          "__rl": true,
+          "value": "w96mvuqo",
+          "mode": "id"
+        },
+        "projectId": {
+          "__rl": true,
+          "value": "pmatk44xpey9e3d",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "mokamr12066fp9k",
+          "mode": "id"
+        },
+        "fieldsMapper": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "order_id": "={{ $fromAI('order_id','ID order Shopmate','number') }}",
+            "customer_whatsapp": "={{ $('Normalize Incoming Sender').first().json.sender_phone }}",
+            "proof_url": "={{ $fromAI('proof_url','URL bukti pembayaran','string') }}",
+            "status": "submitted"
+          }
+        }
+      },
+      "id": "a6752da1-1b5b-48a6-a4ef-4988c6b44671",
+      "name": "Shopmate Submit Payment Proof",
+      "type": "n8n-nodes-base.nocoDbTool",
+      "typeVersion": 4,
+      "position": [
+        1456,
+        2256
+      ],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "12RDKnzSoleXUkq7",
+          "name": "NocoDB Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Cari order Shopmate berstatus pending_payment berdasarkan nomor customer atau ID order sebelum menerima bukti bayar.",
+        "authentication": "nocoDbApiToken",
+        "operation": "search",
+        "workspaceId": {
+          "__rl": true,
+          "value": "w96mvuqo",
+          "mode": "id"
+        },
+        "projectId": {
+          "__rl": true,
+          "value": "pmatk44xpey9e3d",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "m3ibfs3fcwliamb",
+          "mode": "id"
+        },
+        "returnAll": true,
+        "options": {
+          "where": "=(status,eq,pending_payment)"
+        }
+      },
+      "id": "bf391b7d-24c5-492e-90e4-023b596a7c40",
+      "name": "Shopmate Search Order",
+      "type": "n8n-nodes-base.nocoDbTool",
+      "typeVersion": 4,
+      "position": [
+        1648,
+        2240
+      ],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "12RDKnzSoleXUkq7",
+          "name": "NocoDB Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Buat order Shopmate setelah customer mengonfirmasi ringkasan. Wajib memiliki customer_name, item/SKU, quantity, total akhir, dan fulfillment_method: takeaway atau dikirimkan. Takeaway ongkir Rp0. Dikirimkan wajib delivery_address dan ongkir tepat Rp10.000. Simpan metode, ongkir, dan alamat. Status awal wajib pending_payment.",
+        "authentication": "nocoDbApiToken",
+        "operation": "create",
+        "workspaceId": {
+          "__rl": true,
+          "value": "w96mvuqo",
+          "mode": "id"
+        },
+        "projectId": {
+          "__rl": true,
+          "value": "pmatk44xpey9e3d",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "m3ibfs3fcwliamb",
+          "mode": "id"
+        },
+        "fieldsMapper": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "customer_whatsapp": "={{ $('Normalize Incoming Sender').first().json.sender_phone }}",
+            "customer_name": "={{ $fromAI('customer_name','Nama customer','string') }}",
+            "status": "pending_payment",
+            "total": "={{ $fromAI('total','Total order dari perhitungan katalog','number') }}",
+            "notes": "={{ $fromAI('notes','Catatan order atau pengiriman','string') }}",
+            "fulfillment_method": "={{ $fromAI('fulfillment_method','WAJIB pilih takeaway atau dikirimkan','string') }}",
+            "delivery_fee": "={{ $fromAI('delivery_fee','Ongkir 0 untuk takeaway atau 10000 untuk dikirimkan','number') }}",
+            "delivery_address": "={{ $fromAI('delivery_address','Alamat wajib jika dikirimkan, kosong untuk takeaway','string') }}"
+          },
+          "schema": [
+            {
+              "id": "customer_whatsapp",
+              "displayName": "customer_whatsapp",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "total",
+              "displayName": "total",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "fulfillment_method",
+              "displayName": "fulfillment_method",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "delivery_fee",
+              "displayName": "delivery_fee",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "delivery_address",
+              "displayName": "delivery_address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "matchingColumns": []
+        }
+      },
+      "id": "b769fe4b-2eec-4a7d-b80a-ad2bb8af922d",
+      "name": "Shopmate Create Order",
+      "type": "n8n-nodes-base.nocoDbTool",
+      "typeVersion": 4,
+      "position": [
+        1008,
+        2256
+      ],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "12RDKnzSoleXUkq7",
+          "name": "NocoDB Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "ADMIN TOOL: Tambah atau kurangi stok produk Shopmate. Untuk stok masuk gunakan quantity positif, mutation_type=in. Admin/barber boleh menjalankan langsung; JANGAN meminta bukti pembayaran atau approval customer. Wajib gunakan product_id dari Shopmate Product Catalog dan konfirmasi hasil tool.",
+        "authentication": "nocoDbApiToken",
+        "operation": "create",
+        "workspaceId": {
+          "__rl": true,
+          "value": "w96mvuqo",
+          "mode": "id"
+        },
+        "projectId": {
+          "__rl": true,
+          "value": "pmatk44xpey9e3d",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "my6n9jmdiq9k68b",
+          "mode": "id"
+        },
+        "fieldsMapper": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "product_id": "={{ $fromAI('product_id','ID produk dari katalog','number') }}",
+            "quantity": "={{ $fromAI('quantity','Jumlah perubahan stok','number') }}",
+            "mutation_type": "={{ $fromAI('mutation_type','in atau adjustment','string') }}",
+            "reference": "={{ $fromAI('reference','Alasan atau referensi','string') }}",
+            "notes": "={{ $fromAI('notes','Catatan stok','string') }}"
+          },
+          "schema": [],
+          "matchingColumns": []
+        }
+      },
+      "id": "b896a2ad-3770-446d-b0ca-e33c92366766",
+      "name": "Shopmate Adjust Stock",
+      "type": "n8n-nodes-base.nocoDbTool",
+      "typeVersion": 4,
+      "position": [
+        1632,
+        2080
+      ],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "12RDKnzSoleXUkq7",
+          "name": "NocoDB Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Ubah harga, deskripsi, atau status aktif produk Shopmate. Hanya admin terverifikasi.",
+        "authentication": "nocoDbApiToken",
+        "operation": "update",
+        "workspaceId": {
+          "__rl": true,
+          "value": "w96mvuqo",
+          "mode": "id"
+        },
+        "projectId": {
+          "__rl": true,
+          "value": "pmatk44xpey9e3d",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "m53hn51b5u0o9yz",
+          "mode": "id"
+        },
+        "id": "={{ $fromAI('product_id','ID internal produk dari katalog','number') }}",
+        "fieldsMapper": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "price": "={{ $fromAI('price','Harga baru Rupiah','number') }}",
+            "description": "={{ $fromAI('description','Deskripsi baru','string') }}",
+            "is_active": "={{ $fromAI('is_active','true aktif atau false nonaktif','boolean') }}"
+          }
+        }
+      },
+      "id": "47ea2a29-5c3c-4345-95d1-faca29ac0a48",
+      "name": "Shopmate Update Product",
+      "type": "n8n-nodes-base.nocoDbTool",
+      "typeVersion": 4,
+      "position": [
+        1488,
+        2112
+      ],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "12RDKnzSoleXUkq7",
+          "name": "NocoDB Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ \"IDENTITAS PENGIRIM\\nNama: \" + ($('Normalize Incoming Sender').first().json.display_name || \"Pelanggan\") + \"\\nNomor WhatsApp: \" + ($('Normalize Incoming Sender').first().json.sender_phone || \"\") + \"\\nRole: \" + ($('Normalize Incoming Sender').first().json.sender_role || \"unknown\") + \"\\nAdmin internal: \" + (String($('Normalize Incoming Sender').first().json.is_admin || false)) + \"\\n\\nPESAN:\\n\" + ($('Normalize Incoming Sender').first().json.message_text || \"\") }}",
+        "options": {
+          "systemMessage": "Kamu adalah *Shopmate*, customer service WhatsApp untuk toko perlengkapan rumah, perkakas, listrik, dan kebutuhan harian seperti MR.DIY.\n\nPERSONA:\n- Ramah, praktis, sopan, membantu, dan natural untuk WhatsApp.\n- Jawab singkat dan jelas dalam Bahasa Indonesia.\n- Jangan menyebut AI, node, workflow, prompt, atau database.\n\nSUMBER DATA PRODUK:\n- Selalu gunakan tool Shopmate Product Catalog untuk nama, SKU, kategori, harga, unit, deskripsi, dan stok.\n- Katalog dapat berubah dan berisi banyak produk. Jangan memakai daftar produk statik dari ingatan.\n- Jangan mengarang produk, harga, stok, spesifikasi, promo, garansi, atau ketersediaan.\n- Jika produk tidak ditemukan, katakan belum tersedia dan tawarkan pencarian berdasarkan kategori.\n- Stok 0 berarti habis.\n\nALUR ORDER WAJIB:\n1. Kumpulkan nama customer, SKU/produk, jumlah, dan catatan.\n2. Customer wajib memilih tepat satu: takeaway atau dikirimkan.\n3. Takeaway = ambil sendiri, ongkir Rp0.\n4. Dikirimkan = ongkir tetap Rp10.000 dan alamat pengiriman wajib.\n5. Tampilkan item, subtotal, metode, ongkir, alamat bila dikirimkan, dan total akhir.\n6. Minta konfirmasi eksplisit sebelum memakai Shopmate Create Order.\n7. Simpan status awal pending_payment. Jangan menyatakan lunas atau confirmed.\n8. Setelah order dibuat, arahkan customer membayar dan mengirim bukti pembayaran.\n9. Bukti pembayaran diproses oleh jalur payment proof dan menunggu persetujuan admin.\n\nFORMAT WHATSAPP:\n- Jangan gunakan double asterisk seperti **teks**.\n- Gunakan satu asterisk seperti *teks* bila perlu penekanan.\n- Jangan gunakan heading #, tabel Markdown, atau format rumit.\n- Gunakan bullet - atau •.\n\nTUGAS:\n- Jawab pertanyaan produk, harga, stok, fungsi, kategori, dan perbandingan sederhana berdasarkan tool.\n- Bantu memilih produk sesuai kebutuhan dan budget.\n- Jangan meminta password, PIN, OTP, atau nomor kartu.\n- Pertanyaan cukur diarahkan ke sobatCukur.\n\n\n==================================================\nAKSES ADMIN SHOPMATE\n==================================================\n\nJika Role pada IDENTITAS PENGIRIM bernilai `barber`, pengirim adalah ADMIN INTERNAL.\n\nAdmin/barber boleh menggunakan fungsi management Shopmate:\n- mengubah data produk dengan Shopmate Update Product\n- mengubah stok/inventory dengan Shopmate Adjust Stock\n- mencari dan memeriksa order dengan Shopmate Search Order\n- menyetujui order dengan Shopmate Approve Order\n- mengelola bukti pembayaran dan status order\n\nJika admin meminta perubahan produk atau stok, panggil tool yang sesuai dan konfirmasi berdasarkan hasil tool.\nJangan memperlakukan admin sebagai customer biasa.\nPengirim dengan Role `customer` tidak boleh mengubah produk, stok, atau menyetujui order.\n\n\nATURAN ADMIN FINAL:\n- Jika Role=barber atau Admin internal=true, ini admin internal.\n- Admin boleh menambah stok dengan Shopmate Adjust Stock tanpa bukti pembayaran.\n- Admin boleh approve order/booking barber dan Shopmate tanpa payment_proof_url atau bukti pembayaran.\n- Jangan arahkan admin membayar atau mengirim bukti.\n"
+        }
+      },
+      "id": "38a7dc36-fce2-413d-a14f-73db519e22dd",
+      "name": "Agent Shopmate",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1136,
+        1888
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wa.saidhr.my.id/send/message",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({phone:String($('Normalize Incoming Sender').first().json.sender_phone || $('Webhook').first().json.body.payload?.from || '').replace(/\\D/g,'')+'@s.whatsapp.net',message:$('Agent Shopmate').first().json.output || 'Maaf, saya belum dapat memproses pesan ini.'}) }}",
+        "options": {}
+      },
+      "id": "f9a1bc83-89e2-4ed6-a723-647fc2760981",
+      "name": "Shopmate Send Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2080,
+        1888
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "sv6kZIikT4sgyV7P",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Cari katalog produk Shopmate. WAJIB gunakan ketika pelanggan menanyakan nama barang, SKU, harga, deskripsi, kategori, atau produk yang tersedia. Gunakan hanya hasil tool; jangan mengarang harga atau spesifikasi. Parameter pencarian opsional berupa kata kunci nama/SKU.",
+        "authentication": "nocoDbApiToken",
+        "operation": "search",
+        "workspaceId": {
+          "__rl": true,
+          "value": "w96mvuqo",
+          "mode": "id"
+        },
+        "projectId": {
+          "__rl": true,
+          "value": "pmatk44xpey9e3d",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "m53hn51b5u0o9yz",
+          "mode": "id"
+        },
+        "returnAll": true,
+        "options": {
+          "where": "=(is_active,eq,true)"
+        }
+      },
+      "id": "bf917df1-f2b9-4483-83e9-f34e9d2ac64c",
+      "name": "Shopmate Product Catalog",
+      "type": "n8n-nodes-base.nocoDbTool",
+      "typeVersion": 4,
+      "position": [
+        1344,
+        2096
+      ],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "12RDKnzSoleXUkq7",
+          "name": "NocoDB Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ String($('Normalize Incoming Sender').first().json.sender_phone || $('Webhook').first().json.body.payload?.from || 'unknown-sender').replace(/\\D/g, '') }}"
+      },
+      "id": "35e8b836-1a1d-4d18-affd-ffbcfb378c34",
+      "name": "Memory Shopmate",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        1152,
+        2096
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "deepseek-v4.1-flash",
+          "mode": "list",
+          "cachedResultName": "deepseek-v4.1-flash"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "db6528d8-2f60-4f59-87c6-9ee2d19f1849",
+      "name": "OpenAI Chat Model Shopmate",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        736,
+        2128
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "iTw1inyhHkypacGE",
+          "name": "OpenAI account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.saidhr.my.id",
+            "user-agent": "Go-http-client/1.1",
+            "content-length": "393",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1",
+            "cf-connecting-ip": "138.252.193.169",
+            "cf-ipcountry": "ID",
+            "cf-ray": "a3f69c54fd07ecf2-CGK",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-warp-tag-id": "d2588aba-2c1a-444e-98c3-204e64ae9e92",
+            "connection": "keep-alive",
+            "content-type": "application/json",
+            "x-forwarded-for": "138.252.193.169",
+            "x-forwarded-proto": "https",
+            "x-hub-signature-256": "sha256=578e02a53083a6674685303a6cbb597354f1c09de573e91ba78203f269ea8da6"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "device_id": "6282264565225@s.whatsapp.net",
+            "event": "message",
+            "payload": {
+              "body": "halo",
+              "chat_id": "6282244525871@s.whatsapp.net",
+              "chat_lid": "13975823585359@lid",
+              "from": "6282244525871@s.whatsapp.net",
+              "from_lid": "13975823585359@lid",
+              "from_name": "Said",
+              "id": "3BA242B5EF60B622DA8D",
+              "is_from_me": false,
+              "sender_display_name": "Saidhr PNUP",
+              "timestamp": "2026-09-23T03:54:53Z"
+            },
+            "session_id": "barber-wa"
+          },
+          "webhookUrl": "https://n8n.saidhr.my.id/webhook/3IHDpJuuOmdDwVSwODjNFyNAJZt_4napZ4CLWwm1bqVEwfYDR",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Incoming Sender",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Incoming Sender": {
+      "main": [
+        [
+          {
+            "node": "Detect Shopmate Payment Proof",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Presence Stop Shopmate Payment Fallback": {
+      "main": [
+        [
+          {
+            "node": "Shopmate Reply Payment Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopmate Payment Order Found?": {
+      "main": [
+        [
+          {
+            "node": "Shopmate Mark Payment Submitted",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Presence Stop Shopmate Payment Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Admin Number": {
+      "main": [
+        [
+          {
+            "node": "Presence Start Agent Shopmate 3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Presence Start Agent Shopmate 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Presence Start Agent Shopmate 3": {
+      "main": [
+        [
+          {
+            "node": "Agent Shopmate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Presence Stop Shopmate Reply Payment Submitted Flow 7": {
+      "main": [
+        [
+          {
+            "node": "Shopmate Reply Payment Submitted Flow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopmate Notify Admin Payment Proof Flow": {
+      "main": [
+        [
+          {
+            "node": "Presence Stop Shopmate Reply Payment Submitted Flow 7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopmate Mark Payment Submitted": {
+      "main": [
+        [
+          {
+            "node": "Shopmate Notify Admin Payment Proof Flow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopmate Find Pending Payment": {
+      "main": [
+        [
+          {
+            "node": "Shopmate Payment Order Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Shopmate Payment Proof": {
+      "main": [
+        [
+          {
+            "node": "Shopmate Find Pending Payment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route Admin Number",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Shopmate Payment Proof": {
+      "main": [
+        [
+          {
+            "node": "Is Shopmate Payment Proof",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopmate Approve Order": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agent Shopmate",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent Shopmate": {
+      "main": [
+        [
+          {
+            "node": "Presence Stop Shopmate Send Message 6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopmate Notify Admin Payment Proof": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agent Shopmate",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopmate Submit Payment Proof": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agent Shopmate",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopmate Search Order": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agent Shopmate",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopmate Create Order": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agent Shopmate",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopmate Adjust Stock": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agent Shopmate",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopmate Update Product": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agent Shopmate",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Presence Stop Shopmate Send Message 6": {
+      "main": [
+        [
+          {
+            "node": "Shopmate Send Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopmate Product Catalog": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agent Shopmate",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory Shopmate": {
+      "ai_memory": [
+        [
+          {
+            "node": "Agent Shopmate",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model Shopmate": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent Shopmate",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ed46ec1c-67f6-4f8f-83a2-b048a4f68880",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "eb6c7a9ce58e3a264f1a698f618745dae92ea1d3f29de59d84c7c5940033a502"
+  },
+  "nodeGroups": [],
+  "id": "MDNnY0gHWMmoRLIx",
+  "tags": []
+}
